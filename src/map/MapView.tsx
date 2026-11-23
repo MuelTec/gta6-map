@@ -8,7 +8,7 @@ import type { Marker, MasterId } from '../types';
 
 const TILE_URL = `${import.meta.env.BASE_URL || './'}tiles/yanis,6/{z}/{z},{y},{x}.jpg`;
 const TILE_SIZE = 1024;
-const MIN_ZOOM = 2;
+const MIN_ZOOM = 0;
 const MAX_ZOOM = 9;
 const MAX_NATIVE_ZOOM = 5;
 

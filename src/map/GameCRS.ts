@@ -24,7 +24,7 @@ export const WORLD_BOUNDS = L.latLngBounds([-16384, -16384], [16384, 16384]);
 export const TILE_BOUNDS = L.latLngBounds([-8192, -16384], [12288, 4096]);
 
 /** Região de interesse (Vice City, Keys, Port Gellhorn, etc.) — vista inicial. */
-export const VIEW_BOUNDS = L.latLngBounds([-8000, -16000], [12000, 4000]);
+export const VIEW_BOUNDS = L.latLngBounds([-12000, -18000], [14000, 6000]);
 
 export function toLatLng(x: number, y: number): L.LatLng {
   // x → leste (lng), y → norte (lat)
