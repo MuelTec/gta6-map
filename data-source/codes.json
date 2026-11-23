@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "id": "cofre-kingpin",
+      "title": "Cofre do Kingpin Bowling",
+      "where": "Kingpin Bowling — Port Gellhorn",
+      "code": "0300",
+      "note": "A senha tem zero à esquerda (não digite apenas 300). Pode ser usada já no Capítulo 2. A pista fica no bloco de anotações ao lado do cofre.",
+      "source": "promptowy.com"
+    },
+    {
+      "id": "cofre-brooks",
+      "title": "Cofre do Brooks Boatworks",
+      "where": "Brooks Boatworks — Port Gellhorn",
+      "code": "6823",
+      "note": "Uma das três senhas de Port Gellhorn. Suba a escada externa até o escritório e examine o mapa na parede (segure L2) para registrar as três.",
+      "source": "promptowy.com"
+    },
+    {
+      "id": "cofre-cascara",
+      "title": "Cofre do La Cascara Motel",
+      "where": "La Cascara Motel — Port Gellhorn",
+      "code": "6969",
+      "note": "Uma das três senhas de Port Gellhorn, registradas pelo mapa no escritório do Brooks Boatworks.",
+      "source": "promptowy.com"
+    },
+    {
+      "id": "missao-lab-fees",
+      "title": "Códigos da missão Lab Fees",
+      "where": "Loja de souvenirs — Key Lento (Capítulo 1)",
+      "code": "0420 / 7700",
+      "note": "Recompensa de US$ 600 ao entregar a mercadoria para o esconderijo do Brian.",
+      "source": "promptowy.com"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+import L from 'leaflet';
+
+/**
+ * CRS do mapa do GTA 6.
+ *
+ * As coordenadas de jogo (x → leste, y → norte) são usadas como (lng, lat).
+ * O mundo tem 32768 unidades centradas em (0,0); a escala 2^zoom / 32 faz com
+ * que no zoom 6 existam 2 px por unidade (no zoom 5, 1 px ≈ 1 metro).
+ *
+ * Tiles no formato "tiles/yanis,6/{z}/{z},{y},{x}.jpg" (1024 px), nativos até o
+ * zoom 5 (com overzoom no 6).
+ */
+export const GAME_CRS = Object.assign({}, L.CRS.Simple, {
+  code: 'GTA6',
+  transformation: new L.Transformation(1, 16384, -1, 16384),
+  scale: (zoom: number) => Math.pow(2, zoom) / 32,
+  zoom: (scale: number) => Math.log2(scale * 32),
+}) as L.CRS;
+
+/** Mundo completo. */
+export const WORLD_BOUNDS = L.latLngBounds([-16384, -16384], [16384, 16384]);
+
+/** Região onde existem tiles nativos (zooms 3–5 cobrem exatamente isso). */
+export const TILE_BOUNDS = L.latLngBounds([-8192, -16384], [12288, 4096]);
+
+/** Região de interesse (Vice City, Keys, Port Gellhorn, etc.) — vista inicial. */
+export const VIEW_BOUNDS = L.latLngBounds([-8000, -16000], [12000, 4000]);
+
+export function toLatLng(x: number, y: number): L.LatLng {
+  // x → leste (lng), y → norte (lat)
+  return L.latLng(y, x);
+}
