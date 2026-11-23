@@ -453,6 +453,12 @@ a { color: var(--accent-2); }
 }
 .fab-menu { left: 12px; top: 12px; width: 44px; padding: 10px 0; text-align: center; }
 .fab-codes { left: 12px; bottom: 22px; }
+.fab-expand {
+  display: block;
+  left: 12px;
+  top: 12px;
+  z-index: 600;
+}
 
 /* ---------- Guia de códigos ---------- */
 .codes-overlay {

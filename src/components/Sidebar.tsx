@@ -18,6 +18,8 @@ type Props = {
   setHiddenFound: (v: boolean) => void;
   showSubs: boolean;
   setShowSubs: (v: boolean) => void;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
   totalFound: number;
   totalVisible: number;
   onExport: () => void;
@@ -52,6 +54,8 @@ export default function Sidebar(p: Props) {
     [p.markers, p.found],
   );
 
+  if (p.collapsed) return null;
+
   return (
     <aside className="sidebar">
       <header className="side-head">
@@ -70,6 +74,14 @@ export default function Sidebar(p: Props) {
             title="Guia de códigos e senhas"
           >
             🔑 Códigos
+          </button>
+          <button
+            type="button"
+            className="ghost coll-btn"
+            onClick={() => p.setCollapsed(true)}
+            title="Recolher menu"
+          >
+            ◀
           </button>
           {p.onClose && (
             <button type="button" className="ghost close-btn" onClick={p.onClose} aria-label="Fechar">

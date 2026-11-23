@@ -44,6 +44,7 @@ export default function App() {
   const [found, setFound] = useState<Set<string>>(initial.found);
   const [hideFound, setHideFound] = useState(initial.settings.hideFound);
   const [showSubs, setShowSubs] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMasters, setActiveMasters] = useState<Set<MasterId>>(initial.settings.masters);
   const [activeSubs, setActiveSubs] = useState<Set<string> | null>(null);
   const [query, setQuery] = useState('');
@@ -258,6 +259,8 @@ export default function App() {
           setHiddenFound={setHideFound}
           showSubs={showSubs}
           setShowSubs={setShowSubs}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
           totalFound={totalFound}
           totalVisible={totalVisible}
           onExport={onExport}
@@ -270,6 +273,18 @@ export default function App() {
           onClose={() => setDrawerOpen(false)}
         />
       </div>
+
+      {sidebarCollapsed && (
+        <button
+          type="button"
+          className="fab fab-expand"
+          onClick={() => setSidebarCollapsed(false)}
+          aria-label="Abrir menu"
+          title="Abrir menu"
+        >
+          ▶ Menu
+        </button>
+      )}
 
       <MapView
         markers={markers}
