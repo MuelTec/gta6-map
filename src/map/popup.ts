@@ -1,5 +1,5 @@
 import type { Marker } from '../types';
-import { MASTER_META, SUB_LABELS } from '../data/categories';
+import { MASTER_META, SUB_LABELS, gtaCat, subColor, subIconHtml } from '../data/categories';
 
 export function escapeHtml(s: string): string {
   return s
@@ -16,12 +16,13 @@ export function escapeHtml(s: string): string {
  */
 export function buildPopupContent(m: Marker, isFound: boolean): string {
   const meta = MASTER_META[m.master];
-  const sub = SUB_LABELS[m.cat] ?? meta.label;
+  const sub = SUB_LABELS[m.cat] ?? gtaCat(m.cat)?.name ?? meta.label;
+  const color = subColor(m.sub, m.master);
 
   return `
     <div class="pop">
       <div class="pop__head">
-        <span class="pop__badge" style="--c:${meta.color}">${meta.emoji} ${escapeHtml(sub)}</span>
+        <span class="pop__badge" style="--c:${color}">${subIconHtml(m.sub, m.master, 12)} ${escapeHtml(sub)}</span>
         ${isFound ? '<span class="pop__ok">✓ encontrado</span>' : ''}
       </div>
       <h3 class="pop__title">${escapeHtml(m.name)}</h3>

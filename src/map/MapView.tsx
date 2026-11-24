@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GAME_CRS, toLatLng, VIEW_BOUNDS, LEONIDA_BOUNDS } from './GameCRS';
 import { buildPopupContent } from './popup';
-import { MASTER_META } from '../data/categories';
+import { subColor, subIconHtml } from '../data/categories';
 import type { Marker, MasterId } from '../types';
 
 const BASE = import.meta.env.BASE_URL || './';
@@ -172,11 +172,10 @@ export default function MapView({
     markersRef.current.clear();
 
     for (const m of markers) {
-      const meta = MASTER_META[m.master];
-      const color = meta?.color ?? '#888';
+      const color = subColor(m.sub, m.master);
       const icon = L.divIcon({
         className: 'g6-marker-wrap',
-        html: `<div class="g6-marker" style="--c:${color}"><span>${meta?.emoji ?? '📍'}</span></div>`,
+        html: `<div class="g6-marker" style="--c:${color}">${subIconHtml(m.sub, m.master)}</div>`,
         iconSize: [28, 28],
         iconAnchor: [14, 14],
         popupAnchor: [0, -14],

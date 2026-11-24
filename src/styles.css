@@ -235,6 +235,12 @@ a { color: var(--accent-2); }
 .sub.is-on { color: var(--text); }
 .sub input { accent-color: var(--accent-2); }
 .sub span { flex: 1; }
+.sub .sub-dot {
+  flex: 0 0 auto;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+}
 .sub em {
   font-style: normal;
   font-size: 11px;
@@ -364,6 +370,7 @@ a { color: var(--accent-2); }
   color: #fff;
 }
 .pop__ok { font-size: 11px; color: var(--ok); font-weight: 600; }
+.pop__badge svg { vertical-align: -2px; }
 .pop__title { margin: 9px 0 3px; font-size: 16px; line-height: 1.25; }
 .pop__where, .pop__real { font-size: 12.5px; color: var(--muted); }
 .pop__real { margin-top: 2px; }

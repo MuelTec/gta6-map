@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { MASTER_META, SUB_LABELS } from '../data/categories';
+import { MASTER_META, SUB_LABELS, subColor } from '../data/categories';
 import type { Marker, MasterId } from '../types';
 
 type Props = {
@@ -181,6 +181,7 @@ export default function Sidebar(p: Props) {
                           checked={subOn}
                           onChange={() => p.toggleSub(s.id)}
                         />
+                        <span className="sub-dot" style={{ background: subColor(s.id, id) }} />
                         <span>{s.label}</span>
                         <em>
                           {s.found}/{s.total}

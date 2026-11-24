@@ -1,4 +1,5 @@
 import type { MasterId } from '../types';
+import { GTA_CATS, type GtaCat } from './gtacats';
 
 export interface MasterMeta {
   label: string;
@@ -7,18 +8,19 @@ export interface MasterMeta {
   subs: string[];
 }
 
-/** Categorias principais (o que o usuário liga/desliga no painel). */
+/** Categorias principais (o que o usuário liga/desliga no painel).
+ * Cores alinhadas à paleta do gta6route quando existe 1:1 (car, egg, guns). */
 export const MASTER_META: Record<MasterId, MasterMeta> = {
   carros: {
     label: 'Carros raros',
     emoji: '🚗',
-    color: '#38bdf8',
+    color: '#e08a00',
     subs: ['car'],
   },
   colecionaveis: {
     label: 'Easter eggs',
     emoji: '💎',
-    color: '#c084fc',
+    color: '#ff2d8a',
     subs: ['egg'],
   },
   cofres: {
@@ -30,7 +32,7 @@ export const MASTER_META: Record<MasterId, MasterMeta> = {
   armas: {
     label: 'Armas',
     emoji: '🔫',
-    color: '#f87171',
+    color: '#dc2626',
     subs: ['guns'],
   },
   lojas: {
@@ -114,4 +116,30 @@ export function normalize(s: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+}
+
+// ── Ícones e cores do gta6route (por subcategoria) ────────────────────────────
+
+/** Dados da categoria no estilo do gta6route (cor + ícone SVG), se existir. */
+export function gtaCat(sub: string): GtaCat | undefined {
+  return GTA_CATS[sub];
+}
+
+/** Cor do marcador: cor da subcategoria no gta6route, senão a da categoria principal. */
+export function subColor(sub: string, master: MasterId): string {
+  return GTA_CATS[sub]?.color ?? MASTER_META[master]?.color ?? '#888';
+}
+
+/** Ícone de linha branco (24×24) da categoria — mesmo traço do gta6route.
+ *  Sem ícone categórico, cai para o emoji da categoria principal. */
+export function subIconHtml(sub: string, master: MasterId, size = 17): string {
+  const cat = GTA_CATS[sub];
+  if (cat?.icon) {
+    return (
+      `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" ` +
+      `stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" ` +
+      `aria-hidden="true" focusable="false">${cat.icon}</svg>`
+    );
+  }
+  return `<span>${MASTER_META[master]?.emoji ?? '📍'}</span>`;
 }
