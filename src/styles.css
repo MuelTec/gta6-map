@@ -288,10 +288,15 @@ a { color: var(--accent-2); }
   transition: 0.15s;
 }
 .map-tools button:hover { border-color: var(--accent-2); color: var(--accent-2); }
+.map-tools button.is-active {
+  border-color: var(--accent);
+  color: #ffd166;
+  background: rgba(255, 61, 129, 0.22);
+}
 
 .map-credit {
   position: absolute;
-  bottom: 4px; right: 8px;
+  bottom: 26px; right: 8px;
   z-index: 500;
   font-size: 10.5px;
   color: #cbd6ee;

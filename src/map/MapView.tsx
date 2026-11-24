@@ -1,16 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { GAME_CRS, toLatLng, VIEW_BOUNDS } from './GameCRS';
+import { GAME_CRS, toLatLng, VIEW_BOUNDS, LEONIDA_BOUNDS } from './GameCRS';
 import { buildPopupContent } from './popup';
 import { MASTER_META } from '../data/categories';
 import type { Marker, MasterId } from '../types';
 
-const TILE_URL = `${import.meta.env.BASE_URL || './'}tiles/yanis,6/{z}/{z},{y},{x}.jpg`;
+const BASE = import.meta.env.BASE_URL || './';
+const TILE_URL = `${BASE}tiles/yanis,6/{z}/{z},{y},{x}.jpg`;
+const MAP_IMAGE = `${BASE}leonida.webp`;
 const TILE_SIZE = 1024;
 const MIN_ZOOM = 0;
 const MAX_ZOOM = 9;
 const MAX_NATIVE_ZOOM = 5;
+
+type BaseMode = 'image' | 'tiles';
 
 type Props = {
   markers: Marker[];
@@ -59,6 +63,8 @@ export default function MapView({
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const baseLayersRef = useRef<{ image: L.ImageOverlay; tiles: L.TileLayer } | null>(null);
+  const [base, setBase] = useState<BaseMode>('image');
   const handlersRef = useRef({ onSelect, onToggleFound, onCopy });
   handlersRef.current = { onSelect, onToggleFound, onCopy };
 
@@ -77,19 +83,34 @@ export default function MapView({
       wheelPxPerZoomLevel: 120,
     });
 
-    L.tileLayer(TILE_URL, {
+    const tileLayer = L.tileLayer(TILE_URL, {
       tileSize: TILE_SIZE,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       maxNativeZoom: MAX_NATIVE_ZOOM,
-      bounds: VIEW_BOUNDS,
+      bounds: LEONIDA_BOUNDS,
       attribution:
-        'Tiles: <a href="https://gta6map.github.io">gta6map</a> · Locais: ' +
-        '<a href="https://gta6route.com">gta6route.com</a> (CC BY 4.0)',
+        'Mapa: <a href="https://gta6route.com">gta6route.com</a> · ' +
+        '<a href="https://map.gtadb.org">GTA VI Mapping Community</a> (CC BY 4.0) · ' +
+        'Locais: gta6route.com (CC BY 4.0)',
       keepBuffer: 2,
-    }).addTo(map);
+    });
 
-    map.setView(toLatLng(0, 0), 4, { animate: false });
+    // Imagem única do mapa completo de Leonida (camada base padrão)
+    const imageLayer = L.imageOverlay(MAP_IMAGE, LEONIDA_BOUNDS, {
+      opacity: 1,
+      interactive: false,
+      attribution:
+        'Mapa: <a href="https://gta6route.com">gta6route.com</a> · ' +
+        '<a href="https://map.gtadb.org">GTA VI Mapping Community</a> (CC BY 4.0)',
+    });
+
+    imageLayer.addTo(map);
+    baseLayersRef.current = { image: imageLayer, tiles: tileLayer };
+    setBase('image');
+
+    // enquadra o mapa inteiro de Leonida (a imagem única é nítida até ~zoom 2)
+    map.fitBounds(LEONIDA_BOUNDS, { animate: false, padding: [12, 12] });
 
     const layer = L.layerGroup().addTo(map);
     layerRef.current = layer;
@@ -119,9 +140,27 @@ export default function MapView({
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
+      baseLayersRef.current = null;
       markersRef.current.clear();
     };
   }, []);
+
+  // --- alterna entre a imagem única do mapa e os tiles de detalhe ---
+  useEffect(() => {
+    const map = mapRef.current;
+    const layers = baseLayersRef.current;
+    if (!map || !layers) return;
+    const show = base === 'image' ? layers.image : layers.tiles;
+    const hide = base === 'image' ? layers.tiles : layers.image;
+    if (map.hasLayer(hide)) map.removeLayer(hide);
+    if (!map.hasLayer(show)) show.addTo(map);
+    // a camada base entra por cima — reaplica os marcadores para ficarem acima
+    const markersLayer = layerRef.current;
+    if (markersLayer && map.hasLayer(markersLayer)) {
+      map.removeLayer(markersLayer);
+      markersLayer.addTo(map);
+    }
+  }, [base]);
 
   // --- (re)create marker objects when the marker list changes ---
   useEffect(() => {
@@ -204,16 +243,28 @@ export default function MapView({
         <button
           type="button"
           title="Centralizar em Leonida"
-          onClick={() => mapRef.current?.setView(toLatLng(0, 0), 4, { animate: true })}
+          onClick={() => mapRef.current?.fitBounds(LEONIDA_BOUNDS, { animate: true, padding: [12, 12] })}
         >
           ◎
         </button>
         <button
           type="button"
           title="Ver tudo"
-          onClick={() => mapRef.current?.fitBounds(VIEW_BOUNDS, { animate: true })}
+          onClick={() => mapRef.current?.fitBounds(LEONIDA_BOUNDS, { animate: true })}
         >
           ⤢
+        </button>
+        <button
+          type="button"
+          className={base === 'image' ? 'is-active' : ''}
+          title={
+            base === 'image'
+              ? 'Mapa ilustrado ativo — toque para ver os tiles de detalhe'
+              : 'Tiles de detalhe ativos — toque para voltar ao mapa ilustrado'
+          }
+          onClick={() => setBase((b) => (b === 'image' ? 'tiles' : 'image'))}
+        >
+          {base === 'image' ? '🗺️' : '🛰️'}
         </button>
       </div>
       <div className="map-credit">

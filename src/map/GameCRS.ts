@@ -26,6 +26,13 @@ export const TILE_BOUNDS = L.latLngBounds([-8192, -16384], [12288, 4096]);
 /** Região de interesse (Vice City, Keys, Port Gellhorn, etc.) — vista inicial. */
 export const VIEW_BOUNDS = L.latLngBounds([-12000, -18000], [14000, 6000]);
 
+/**
+ * Limites exatos do mapa completo de Leonida (imagem "leonida.webp" e faixa
+ * de tiles nativos). A proporção da imagem (1400×1787 = 0.7834) coincide com
+ * esta área (14100×18000 = 0.7833), então ela encaixa sem distorção.
+ */
+export const LEONIDA_BOUNDS = L.latLngBounds([-8400, -10200], [9600, 3900]);
+
 export function toLatLng(x: number, y: number): L.LatLng {
   // x → leste (lng), y → norte (lat)
   return L.latLng(y, x);
