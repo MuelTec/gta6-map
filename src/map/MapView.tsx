@@ -7,12 +7,13 @@ import { MASTER_META } from '../data/categories';
 import type { Marker, MasterId } from '../types';
 
 const BASE = import.meta.env.BASE_URL || './';
-const TILE_URL = `${BASE}tiles/yanis,6/{z}/{z},{y},{x}.jpg`;
+// Tiles do map.gtadb.org (tileSet "day") espelhados localmente — nativos até z6.
+const TILE_URL = `${BASE}tiles/day/{z}/{z},{y},{x}.jpg`;
 const MAP_IMAGE = `${BASE}leonida.webp`;
-const TILE_SIZE = 1024;
+const TILE_SIZE = 256;
 const MIN_ZOOM = 0;
-const MAX_ZOOM = 9;
-const MAX_NATIVE_ZOOM = 5;
+const MAX_ZOOM = 8;
+const MAX_NATIVE_ZOOM = 6;
 
 type BaseMode = 'image' | 'tiles';
 
@@ -64,7 +65,7 @@ export default function MapView({
   const layerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const baseLayersRef = useRef<{ image: L.ImageOverlay; tiles: L.TileLayer } | null>(null);
-  const [base, setBase] = useState<BaseMode>('image');
+  const [base, setBase] = useState<BaseMode>('tiles');
   const handlersRef = useRef({ onSelect, onToggleFound, onCopy });
   handlersRef.current = { onSelect, onToggleFound, onCopy };
 
@@ -90,13 +91,13 @@ export default function MapView({
       maxNativeZoom: MAX_NATIVE_ZOOM,
       bounds: LEONIDA_BOUNDS,
       attribution:
-        'Mapa: <a href="https://gta6route.com">gta6route.com</a> · ' +
-        '<a href="https://map.gtadb.org">GTA VI Mapping Community</a> (CC BY 4.0) · ' +
-        'Locais: gta6route.com (CC BY 4.0)',
+        'Tiles: <a href="https://map.gtadb.org">map.gtadb.org</a> · ' +
+        '<a href="https://github.com/rolux/gtadb.org">GTA VI Mapping Community</a> (CC BY 4.0) · ' +
+        'Locais: <a href="https://gta6route.com">gta6route.com</a> (CC BY 4.0)',
       keepBuffer: 2,
     });
 
-    // Imagem única do mapa completo de Leonida (camada base padrão)
+    // Imagem única do mapa completo de Leonida (alternativa à camada de tiles)
     const imageLayer = L.imageOverlay(MAP_IMAGE, LEONIDA_BOUNDS, {
       opacity: 1,
       interactive: false,
@@ -105,11 +106,12 @@ export default function MapView({
         '<a href="https://map.gtadb.org">GTA VI Mapping Community</a> (CC BY 4.0)',
     });
 
-    imageLayer.addTo(map);
+    // Padrão: tiles do gtadb (nítidos até o zoom 6, depois escalados)
+    tileLayer.addTo(map);
     baseLayersRef.current = { image: imageLayer, tiles: tileLayer };
-    setBase('image');
+    setBase('tiles');
 
-    // enquadra o mapa inteiro de Leonida (a imagem única é nítida até ~zoom 2)
+    // enquadra o mapa inteiro de Leonida
     map.fitBounds(LEONIDA_BOUNDS, { animate: false, padding: [12, 12] });
 
     const layer = L.layerGroup().addTo(map);
@@ -256,15 +258,15 @@ export default function MapView({
         </button>
         <button
           type="button"
-          className={base === 'image' ? 'is-active' : ''}
+          className={base === 'tiles' ? 'is-active' : ''}
           title={
-            base === 'image'
-              ? 'Mapa ilustrado ativo — toque para ver os tiles de detalhe'
-              : 'Tiles de detalhe ativos — toque para voltar ao mapa ilustrado'
+            base === 'tiles'
+              ? 'Tiles do gtadb ativos — toque para ver o mapa ilustrado'
+              : 'Mapa ilustrado ativo — toque para ver os tiles do gtadb'
           }
-          onClick={() => setBase((b) => (b === 'image' ? 'tiles' : 'image'))}
+          onClick={() => setBase((b) => (b === 'tiles' ? 'image' : 'tiles'))}
         >
-          {base === 'image' ? '🗺️' : '🛰️'}
+          {base === 'tiles' ? '🛰️' : '🗺️'}
         </button>
       </div>
       <div className="map-credit">

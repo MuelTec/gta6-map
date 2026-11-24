@@ -222,7 +222,8 @@ export default function Sidebar(p: Props) {
           Projeto de fã, sem fins lucrativos. Não afiliado à Rockstar Games ou Take-Two.
           <br />
           Dados de locais: <a href="https://gta6route.com">gta6route.com</a> (CC BY 4.0) ·
-          Tiles: <a href="https://gta6map.github.io">gta6map</a>
+          Tiles: <a href="https://map.gtadb.org">map.gtadb.org</a> — GTA VI Mapping
+          Community (CC BY 4.0)
         </p>
       </footer>
     </aside>

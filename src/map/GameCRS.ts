@@ -7,8 +7,8 @@ import L from 'leaflet';
  * O mundo tem 32768 unidades centradas em (0,0); a escala 2^zoom / 32 faz com
  * que no zoom 6 existam 2 px por unidade (no zoom 5, 1 px ≈ 1 metro).
  *
- * Tiles no formato "tiles/yanis,6/{z}/{z},{y},{x}.jpg" (1024 px), nativos até o
- * zoom 5 (com overzoom no 6).
+ * Tiles no formato "tiles/day/{z}/{z},{y},{x}.jpg" (256 px, do map.gtadb.org),
+ * nativos até o zoom 6 (com overzoom depois dele).
  */
 export const GAME_CRS = Object.assign({}, L.CRS.Simple, {
   code: 'GTA6',
