@@ -2,11 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapView from './map/MapView';
 import Sidebar from './components/Sidebar';
 import CodesPanel from './components/CodesPanel';
-import { ALL_MASTERS } from './data/categories';
+import AddMarkerForm from './components/AddMarkerForm';
+import { ALL_MASTERS, masterForSub } from './data/categories';
 import type { CodeEntry, Marker, MasterId, ProgressExport } from './types';
 
 const LS_FOUND = 'gta6:found:v1';
 const LS_SETTINGS = 'gta6:settings:v1';
+const LS_CUSTOM = 'gta6:custom:v1';
+const LS_REMOVED = 'gta6:removed:v1';
+const LS_CODES = 'gta6:codes:v1';
 
 function loadFound(): Set<string> {
   try {
@@ -16,6 +20,43 @@ function loadFound(): Set<string> {
     return new Set(Array.isArray(arr) ? arr : []);
   } catch {
     return new Set();
+  }
+}
+
+function loadCustom(): Marker[] {
+  try {
+    const raw = localStorage.getItem(LS_CUSTOM);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as Marker[];
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((m) => m && typeof m.id === 'string' && typeof m.x === 'number' && typeof m.y === 'number');
+  } catch {
+    return [];
+  }
+}
+
+function loadRemoved(): string[] {
+  try {
+    const raw = localStorage.getItem(LS_REMOVED);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as unknown[];
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadCodes(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LS_CODES);
+    if (!raw) return {};
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    if (!obj || typeof obj !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj)) if (typeof v === 'string') out[k] = v;
+    return out;
+  } catch {
+    return {};
   }
 }
 
@@ -36,12 +77,20 @@ function loadSettings(): { hideFound: boolean; masters: Set<MasterId> } {
 }
 
 export default function App() {
-  const [markers, setMarkers] = useState<Marker[]>([]);
+  const [baseMarkers, setBaseMarkers] = useState<Marker[]>([]);
   const [codes, setCodes] = useState<CodeEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const initial = useMemo(() => ({ found: loadFound(), settings: loadSettings() }), []);
+  const initial = useMemo(
+    () => ({ found: loadFound(), settings: loadSettings(), custom: loadCustom(), removed: loadRemoved(), userCodes: loadCodes() }),
+    [],
+  );
   const [found, setFound] = useState<Set<string>>(initial.found);
+  const [custom, setCustom] = useState<Marker[]>(initial.custom);
+  const [removed, setRemoved] = useState<string[]>(initial.removed);
+  const [customCodes, setCustomCodes] = useState<Record<string, string>>(initial.userCodes);
+  const [picking, setPicking] = useState(false);
+  const [pendingPos, setPendingPos] = useState<{ x: number; y: number } | null>(null);
   const [hideFound, setHideFound] = useState(initial.settings.hideFound);
   const [showSubs, setShowSubs] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -69,7 +118,7 @@ export default function App() {
     ])
       .then(([m, c]: [{ markers?: Marker[] }, { entries: CodeEntry[] }]) => {
         if (!alive) return;
-        setMarkers(Array.isArray(m?.markers) ? m.markers : []);
+        setBaseMarkers(Array.isArray(m?.markers) ? m.markers : []);
         setCodes(Array.isArray(c?.entries) ? c.entries : []);
       })
       .catch((e: unknown) => {
@@ -86,11 +135,41 @@ export default function App() {
   }, [found]);
 
   useEffect(() => {
+    localStorage.setItem(LS_CUSTOM, JSON.stringify(custom));
+  }, [custom]);
+
+  useEffect(() => {
+    localStorage.setItem(LS_REMOVED, JSON.stringify(removed));
+  }, [removed]);
+
+  useEffect(() => {
+    localStorage.setItem(LS_CODES, JSON.stringify(customCodes));
+  }, [customCodes]);
+
+  useEffect(() => {
     localStorage.setItem(
       LS_SETTINGS,
       JSON.stringify({ hideFound, masters: [...activeMasters] }),
     );
   }, [hideFound, activeMasters]);
+
+  // --- locais visíveis: oficiais (menos os removidos) + criados pelo usuário ---
+  const removedSet = useMemo(() => new Set(removed), [removed]);
+  const markers = useMemo(
+    () => [...baseMarkers.filter((m) => !removedSet.has(m.id)), ...custom],
+    [baseMarkers, removedSet, custom],
+  );
+
+  // Esc cancela o modo de escolher posição / fecha o formulário
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (picking) setPicking(false);
+      else if (pendingPos) setPendingPos(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picking, pendingPos]);
 
   // --- toast ---
   useEffect(() => {
@@ -115,6 +194,96 @@ export default function App() {
       else next.add(id);
       return next;
     });
+  }, []);
+
+  // --- adicionar / remover locais ---
+  const startAdd = useCallback(() => {
+    setDrawerOpen(false);
+    setPendingPos(null);
+    setPicking(true);
+    setToast('Clique no mapa para escolher a posição');
+  }, []);
+
+  const cancelPick = useCallback(() => {
+    setPicking(false);
+    setPendingPos(null);
+  }, []);
+
+  const onPick = useCallback((x: number, y: number) => {
+    setPicking(false);
+    setPendingPos({ x, y });
+  }, []);
+
+  const addMarker = useCallback(
+    (data: { name: string; sub: string; code: string; note: string }) => {
+      if (!pendingPos) return;
+      const id = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const m: Marker = {
+        id,
+        master: masterForSub(data.sub),
+        sub: data.sub,
+        cat: data.sub,
+        name: data.name,
+        district: '',
+        x: Math.round(pendingPos.x),
+        y: Math.round(pendingPos.y),
+        custom: true,
+        ...(data.note ? { note: data.note } : {}),
+      };
+      setCustom((prev) => [...prev, m]);
+      if (data.code) setCustomCodes((prev) => ({ ...prev, [id]: data.code }));
+      setPendingPos(null);
+      setToast(`Local adicionado: ${m.name}`);
+    },
+    [pendingPos],
+  );
+
+  const removeMarker = useCallback(
+    (id: string) => {
+      const target = markers.find((m) => m.id === id);
+      const name = target?.name ?? 'este local';
+      const isCustom = custom.some((m) => m.id === id);
+      const msg = isCustom
+        ? `Remover "${name}" (criado por você)?`
+        : `Remover "${name}" do mapa? Dá para restaurar depois.`;
+      if (!window.confirm(msg)) return;
+      if (isCustom) {
+        setCustom((prev) => prev.filter((m) => m.id !== id));
+        setCustomCodes((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setFound((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      } else {
+        setRemoved((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      }
+      setToast('Local removido');
+    },
+    [markers, custom],
+  );
+
+  const saveCode = useCallback((id: string, code: string) => {
+    setCustomCodes((prev) => ({ ...prev, [id]: code }));
+    setToast('Senha salva');
+  }, []);
+
+  const clearCode = useCallback((id: string) => {
+    setCustomCodes((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setToast('Senha removida');
+  }, []);
+
+  const restoreRemoved = useCallback(() => {
+    setRemoved([]);
+    setToast('Locais restaurados');
   }, []);
 
   const toggleMaster = useCallback((id: MasterId) => {
@@ -183,6 +352,9 @@ export default function App() {
       version: 1,
       exportedAt: new Date().toISOString(),
       found: [...found],
+      custom,
+      removed,
+      codes: customCodes,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -192,7 +364,7 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
     setToast('Progresso exportado');
-  }, [found]);
+  }, [found, custom, removed, customCodes]);
 
   const onImport = useCallback(
     (file: File) => {
@@ -204,7 +376,23 @@ export default function App() {
             throw new Error('Arquivo inválido');
           }
           setFound(new Set(data.found));
-          setToast(`Importado: ${data.found.length} locais`);
+          if (Array.isArray(data.custom)) {
+            setCustom(
+              data.custom.filter(
+                (m) => m && typeof m.id === 'string' && typeof m.x === 'number' && typeof m.y === 'number',
+              ),
+            );
+          }
+          if (Array.isArray(data.removed)) {
+            setRemoved(data.removed.filter((x): x is string => typeof x === 'string'));
+          }
+          if (data.codes && typeof data.codes === 'object') {
+            const out: Record<string, string> = {};
+            for (const [k, v] of Object.entries(data.codes)) if (typeof v === 'string') out[k] = v;
+            setCustomCodes(out);
+          }
+          const extras = (data.custom?.length ?? 0) + (data.removed?.length ?? 0) + Object.keys(data.codes ?? {}).length;
+          setToast(`Importado: ${data.found.length} achados${extras ? ` + ${extras} itens seus` : ''}`);
         })
         .catch((e: unknown) => setToast(e instanceof Error ? e.message : 'Falha ao importar'));
     },
@@ -270,6 +458,12 @@ export default function App() {
             setShowCodes(true);
             setDrawerOpen(false);
           }}
+          onAdd={() => {
+            startAdd();
+            setDrawerOpen(false);
+          }}
+          removedCount={removed.length}
+          onRestoreRemoved={restoreRemoved}
           onClose={() => setDrawerOpen(false)}
         />
       </div>
@@ -294,10 +488,39 @@ export default function App() {
         hiddenFound={hideFound}
         found={found}
         selectedId={selectedId}
+        customCodes={customCodes}
+        picking={picking}
+        onAddClick={startAdd}
+        onPick={onPick}
         onSelect={setSelectedId}
         onToggleFound={toggleFound}
         onCopy={copy}
+        onRemove={removeMarker}
+        onSaveCode={saveCode}
+        onClearCode={clearCode}
       />
+
+      {picking && (
+        <div className="pick-banner">
+          📍 Clique no mapa para posicionar o novo local
+          <button type="button" className="ghost" onClick={cancelPick}>
+            Cancelar (Esc)
+          </button>
+        </div>
+      )}
+
+      {pendingPos && (
+        <AddMarkerForm
+          x={pendingPos.x}
+          y={pendingPos.y}
+          onSave={addMarker}
+          onClose={() => setPendingPos(null)}
+          onRepick={() => {
+            setPendingPos(null);
+            setPicking(true);
+          }}
+        />
+      )}
 
       {showCodes && <CodesPanel codes={codes} onCopy={copy} onClose={() => setShowCodes(false)} />}
 

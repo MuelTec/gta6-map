@@ -22,6 +22,8 @@ export interface Marker {
   code?: string;
   note?: string;
   source?: string;
+  /** local criado pelo próprio usuário */
+  custom?: boolean;
 }
 
 export type CodeKind = 'cofre' | 'missao' | string;
@@ -55,4 +57,10 @@ export interface ProgressExport {
   version: 1;
   exportedAt: string;
   found: string[];
+  /** locais criados pelo usuário (opcional, para compatibilidade com exportações antigas) */
+  custom?: Marker[];
+  /** ids de locais oficiais removidos pelo usuário */
+  removed?: string[];
+  /** senhas deixadas pelo usuário por local */
+  codes?: Record<string, string>;
 }

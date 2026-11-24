@@ -26,6 +26,9 @@ type Props = {
   onImport: (file: File) => void;
   onReset: () => void;
   onOpenCodes: () => void;
+  onAdd: () => void;
+  removedCount: number;
+  onRestoreRemoved: () => void;
   onClose?: () => void;
 };
 
@@ -150,6 +153,10 @@ export default function Sidebar(p: Props) {
         )}
       </div>
 
+      <button type="button" className="add-place" onClick={p.onAdd}>
+        ➕ Adicionar local no mapa
+      </button>
+
       <nav className="cats">
         {groups.map(({ id, meta, subs }) => {
           const c = p.counts[id] ?? { total: 0, found: 0 };
@@ -208,6 +215,13 @@ export default function Sidebar(p: Props) {
             ↺ Zerar
           </button>
         </div>
+        {p.removedCount > 0 && (
+          <div className="foot-row">
+            <button type="button" className="ghost" onClick={p.onRestoreRemoved}>
+              ↩ Restaurar locais removidos ({p.removedCount})
+            </button>
+          </div>
+        )}
         <input
           ref={fileRef}
           type="file"

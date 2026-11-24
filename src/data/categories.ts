@@ -125,6 +125,14 @@ export function gtaCat(sub: string): GtaCat | undefined {
   return GTA_CATS[sub];
 }
 
+/** Categoria principal a partir da subcategoria (para locais criados pelo usuário). */
+export function masterForSub(sub: string): MasterId {
+  for (const [id, meta] of Object.entries(MASTER_META)) {
+    if (meta.subs.includes(sub)) return id as MasterId;
+  }
+  return 'outros';
+}
+
 /** Cor do marcador: cor da subcategoria no gta6route, senão a da categoria principal. */
 export function subColor(sub: string, master: MasterId): string {
   return GTA_CATS[sub]?.color ?? MASTER_META[master]?.color ?? '#888';

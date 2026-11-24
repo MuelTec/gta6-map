@@ -25,9 +25,18 @@ type Props = {
   hiddenFound: boolean;
   found: Set<string>;
   selectedId: string | null;
+  /** senhas deixadas pelo usuário por local */
+  customCodes: Record<string, string>;
+  /** modo "escolher posição" para adicionar um local */
+  picking: boolean;
+  onAddClick: () => void;
+  onPick: (x: number, y: number) => void;
   onSelect: (id: string | null) => void;
   onToggleFound: (id: string) => void;
   onCopy: (text: string) => void;
+  onRemove: (id: string) => void;
+  onSaveCode: (id: string, code: string) => void;
+  onClearCode: (id: string) => void;
 };
 
 function markerVisible(
@@ -56,9 +65,16 @@ export default function MapView({
   hiddenFound,
   found,
   selectedId,
+  customCodes,
+  picking,
+  onAddClick,
+  onPick,
   onSelect,
   onToggleFound,
   onCopy,
+  onRemove,
+  onSaveCode,
+  onClearCode,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -66,8 +82,19 @@ export default function MapView({
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const baseLayersRef = useRef<{ image: L.ImageOverlay; tiles: L.TileLayer } | null>(null);
   const [base, setBase] = useState<BaseMode>('tiles');
-  const handlersRef = useRef({ onSelect, onToggleFound, onCopy });
-  handlersRef.current = { onSelect, onToggleFound, onCopy };
+  const handlersRef = useRef({
+    onSelect,
+    onToggleFound,
+    onCopy,
+    onPick,
+    onRemove,
+    onSaveCode,
+    onClearCode,
+  });
+  handlersRef.current = { onSelect, onToggleFound, onCopy, onPick, onRemove, onSaveCode, onClearCode };
+  // estado "vivo" para o conteúdo do popup (avaliado a cada abertura)
+  const liveRef = useRef({ found, customCodes });
+  liveRef.current = { found, customCodes };
 
   // --- init map once ---
   useEffect(() => {
@@ -118,7 +145,7 @@ export default function MapView({
     layerRef.current = layer;
     mapRef.current = map;
 
-    // Popup action delegation (copy code / toggle found)
+    // Popup action delegation (copy code / toggle found / remove / password)
     map.on('popupopen', (e) => {
       const root = (e.popup as L.Popup).getElement()?.querySelector('.leaflet-popup-content');
       if (!root) return;
@@ -131,6 +158,21 @@ export default function MapView({
         const code = (btn as HTMLElement).dataset.code;
         if (act === 'copy' && code) handlersRef.current.onCopy(code);
         if (act === 'found' && id) handlersRef.current.onToggleFound(id);
+        if (act === 'remove' && id) {
+          map.closePopup();
+          handlersRef.current.onRemove(id);
+        }
+        if (act === 'savecode' && id) {
+          const input = (root as HTMLElement).querySelector('[data-code-input]') as HTMLInputElement | null;
+          const value = (input?.value ?? '').trim();
+          if (!value) return;
+          handlersRef.current.onSaveCode(id, value);
+          map.closePopup();
+        }
+        if (act === 'clearcode' && id) {
+          handlersRef.current.onClearCode(id);
+          map.closePopup();
+        }
       });
     });
 
@@ -164,6 +206,26 @@ export default function MapView({
     }
   }, [base]);
 
+  // --- modo "escolher posição" para adicionar um local ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!picking) {
+      containerRef.current?.classList.remove('is-picking');
+      return;
+    }
+    containerRef.current?.classList.add('is-picking');
+    const onClick = (e: L.LeafletMouseEvent) => {
+      // x → lng, y → lat (GameCRS)
+      handlersRef.current.onPick(e.latlng.lng, e.latlng.lat);
+    };
+    map.on('click', onClick);
+    return () => {
+      map.off('click', onClick);
+      containerRef.current?.classList.remove('is-picking');
+    };
+  }, [picking]);
+
   // --- (re)create marker objects when the marker list changes ---
   useEffect(() => {
     const layer = layerRef.current;
@@ -188,7 +250,7 @@ export default function MapView({
         keyboard: true,
       });
 
-      lm.bindPopup(() => buildPopupContent(m, found.has(m.id)), {
+      lm.bindPopup(() => buildPopupContent(m, liveRef.current.found.has(m.id), liveRef.current.customCodes[m.id]), {
         maxWidth: 320,
         minWidth: 240,
         closeButton: true,
@@ -218,8 +280,13 @@ export default function MapView({
         }
       }
       if (!visible && lm.isPopupOpen()) lm.closePopup();
-      // refresh popup body so "found" button label stays in sync
-      if (lm.isPopupOpen()) lm.setPopupContent(buildPopupContent(m, found.has(m.id)));
+      // refresh popup body so "found" button and password stay in sync
+      // (função, não string — para sempre ler o estado vivo ao reabrir)
+      if (lm.isPopupOpen()) {
+        // (cast: o Leaflet aceita função em runtime, mas o tipo só declara string/HTMLElement)
+        lm.setPopupContent((() =>
+          buildPopupContent(m, liveRef.current.found.has(m.id), liveRef.current.customCodes[m.id])) as unknown as string);
+      }
     }
   }, [markers, query, activeMasters, activeSubs, hiddenFound, found, selectedId]);
 
@@ -241,6 +308,13 @@ export default function MapView({
       <div className="map-tools">
         <button type="button" title="Aproximar" onClick={() => zoomBy(1)}>+</button>
         <button type="button" title="Afastar" onClick={() => zoomBy(-1)}>−</button>
+        <button
+          type="button"
+          title="Adicionar um local no mapa"
+          onClick={onAddClick}
+        >
+          ➕
+        </button>
         <button
           type="button"
           title="Centralizar em Leonida"
