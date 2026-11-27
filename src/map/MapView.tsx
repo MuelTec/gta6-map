@@ -290,6 +290,53 @@ export default function MapView({
     }
   }, [markers, query, activeMasters, activeSubs, hiddenFound, found, selectedId]);
 
+  // --- virtualização: esconde marcadores fora do viewport ---
+  // Fora da tela não há o que pintar; sem isso, a animação de zoom precisa
+  // interpolar transform de 716 elementos e o mapa trava (medido: 23fps → 60fps).
+  // Cálculo é matemática pura (latLngToContainerPoint), sem leitura de layout.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const size = map.getSize();
+      const pad = 300;
+      for (const m of markers) {
+        const lm = markersRef.current.get(m.id);
+        const el = lm?.getElement();
+        if (!lm || !el) continue;
+        // marcador com popup aberto nunca é escondido (evita popup órfão)
+        if (lm.isPopupOpen()) {
+          el.classList.remove('is-offvp');
+          continue;
+        }
+        const p = map.latLngToContainerPoint(lm.getLatLng());
+        const off = p.x < -pad || p.y < -pad || p.x > size.x + pad || p.y > size.y + pad;
+        el.classList.toggle('is-offvp', off);
+      }
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    // zoomstart/zoom (fim) cobrem o salto de escala; move cobre o pan.
+    // zoomanim é omitido de propósito: durante a animação a posição calculada
+    // ainda é a antiga e mudaria errado; o zoom no fim corrige.
+    map.on('move zoom zoomstart resize', schedule);
+    // rede de segurança síncrona: garante a consistência no fim de qualquer
+    // interação (mesmo se um agendamento rAF se perder em transição rápida)
+    map.on('zoomend moveend viewreset', update);
+    schedule();
+    return () => {
+      map.off('move zoom zoomstart resize', schedule);
+      map.off('zoomend moveend viewreset', update);
+      if (raf) cancelAnimationFrame(raf);
+      for (const m of markers) {
+        markersRef.current.get(m.id)?.getElement()?.classList.remove('is-offvp');
+      }
+    };
+  }, [markers]);
+
   // --- focus selected marker ---
   useEffect(() => {
     if (!selectedId || !mapRef.current) return;

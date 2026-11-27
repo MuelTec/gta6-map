@@ -314,6 +314,9 @@ a { color: var(--accent-2); }
 
 /* ---------- Marcadores ---------- */
 .g6-marker-wrap { background: none !important; border: none !important; }
+/* virtualização: fora do viewport não ocupa paint/layout (display !important
+   para não conflitar com o display inline dos filtros do React) */
+.leaflet-marker-icon.is-offvp { display: none !important; }
 .g6-marker {
   width: 28px; height: 28px;
   border-radius: 50%;
