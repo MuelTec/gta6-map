@@ -109,7 +109,9 @@ export default function Sidebar(p: Props) {
       <div className="search">
         <input
           type="search"
+          id="g6-search"
           placeholder="Buscar local, distrito ou senha…"
+          title="Buscar — atalho: /"
           value={p.query}
           onChange={(e) => p.setQuery(e.target.value)}
         />

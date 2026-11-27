@@ -160,17 +160,6 @@ export default function App() {
     [baseMarkers, removedSet, custom],
   );
 
-  // Esc cancela o modo de escolher posição / fecha o formulário
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (picking) setPicking(false);
-      else if (pendingPos) setPendingPos(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [picking, pendingPos]);
-
   // --- toast ---
   useEffect(() => {
     if (!toast) return;
@@ -203,6 +192,38 @@ export default function App() {
     setPicking(true);
     setToast('Clique no mapa para escolher a posição');
   }, []);
+
+  // --- atalhos globais: Esc fecha camadas, / foca a busca, A adiciona local ---
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing =
+        !!t &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+
+      if (e.key === 'Escape') {
+        if (picking) setPicking(false);
+        else if (pendingPos) setPendingPos(null);
+        else if (showCodes) setShowCodes(false);
+        else if (drawerOpen) setDrawerOpen(false);
+        return;
+      }
+      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        const el = document.getElementById('g6-search');
+        if (el instanceof HTMLInputElement) {
+          el.focus();
+          el.select();
+        }
+      } else if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        startAdd();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picking, pendingPos, showCodes, drawerOpen, startAdd]);
 
   const cancelPick = useCallback(() => {
     setPicking(false);

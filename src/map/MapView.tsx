@@ -17,6 +17,24 @@ const MAX_NATIVE_ZOOM = 6;
 
 type BaseMode = 'image' | 'tiles';
 
+// --- última vista (zoom/centro restaurados ao abrir) ---
+const LS_VIEW = 'gta6:view:v1';
+type SavedView = { z: number; lat: number; lng: number };
+
+function loadSavedView(): SavedView | null {
+  try {
+    const raw = localStorage.getItem(LS_VIEW);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as SavedView;
+    if (!v || typeof v.z !== 'number' || typeof v.lat !== 'number' || typeof v.lng !== 'number') return null;
+    if (!Number.isFinite(v.z) || !Number.isFinite(v.lat) || !Number.isFinite(v.lng)) return null;
+    if (v.z < MIN_ZOOM || v.z > MAX_ZOOM) return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
 type Props = {
   markers: Marker[];
   query: string;
@@ -138,12 +156,34 @@ export default function MapView({
     baseLayersRef.current = { image: imageLayer, tiles: tileLayer };
     setBase('tiles');
 
-    // enquadra o mapa inteiro de Leonida
-    map.fitBounds(LEONIDA_BOUNDS, { animate: false, padding: [12, 12] });
+    // restaura a última vista do usuário; senão, enquadra Leonida inteira
+    const savedView = loadSavedView();
+    if (savedView) {
+      map.setView(L.latLng(savedView.lat, savedView.lng), savedView.z, { animate: false });
+    } else {
+      map.fitBounds(LEONIDA_BOUNDS, { animate: false, padding: [12, 12] });
+    }
+
+    // persiste a vista (debounce) a cada fim de pan/zoom
+    let saveTimer: ReturnType<typeof setTimeout> | undefined;
+    const saveView = () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const c = map.getCenter();
+        try {
+          localStorage.setItem(LS_VIEW, JSON.stringify({ z: map.getZoom(), lat: c.lat, lng: c.lng }));
+        } catch {
+          /* localStorage indisponível — sem problema */
+        }
+      }, 400);
+    };
+    map.on('moveend', saveView);
 
     const layer = L.layerGroup().addTo(map);
     layerRef.current = layer;
     mapRef.current = map;
+    // instância do mapa à mão para depuração (uso pessoal)
+    (window as unknown as { __g6?: unknown }).__g6 = { map, tileLayer };
 
     // Popup action delegation (copy code / toggle found / remove / password)
     map.on('popupopen', (e) => {
@@ -181,6 +221,8 @@ export default function MapView({
 
     return () => {
       window.removeEventListener('resize', onResize);
+      map.off('moveend', saveView);
+      clearTimeout(saveTimer);
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
@@ -349,6 +391,28 @@ export default function MapView({
 
   const zoomBy = (d: number) => mapRef.current?.zoomIn(d) ?? mapRef.current?.zoomOut(-d);
 
+  // --- atalhos de zoom (+ / -) — ignorados ao digitar em campos ---
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
+      )
+        return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        mapRef.current?.zoomIn(1);
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        mapRef.current?.zoomOut(1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="map-shell">
       <div ref={containerRef} className="map-el" />
@@ -357,7 +421,7 @@ export default function MapView({
         <button type="button" title="Afastar" onClick={() => zoomBy(-1)}>−</button>
         <button
           type="button"
-          title="Adicionar um local no mapa"
+          title="Adicionar um local no mapa (atalho: A)"
           onClick={onAddClick}
         >
           ➕
