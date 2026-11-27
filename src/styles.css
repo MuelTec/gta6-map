@@ -312,6 +312,82 @@ a { color: var(--accent-2); }
   backdrop-filter: blur(4px);
 }
 
+/* ---------- Coordenadas e medidor ---------- */
+.coord-panel {
+  position: absolute;
+  left: 8px; bottom: 26px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.coord-readout {
+  font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #cbd6ee;
+  background: rgba(11, 16, 32, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 9px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: 0.15s;
+}
+.coord-readout:hover { border-color: var(--accent-2); color: var(--accent-2); }
+.coord-jump { display: flex; gap: 4px; }
+.coord-jump input {
+  width: 132px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(11, 16, 32, 0.85);
+  color: var(--text);
+  outline: none;
+}
+.coord-jump input:focus { border-color: var(--accent-2); }
+.coord-jump button {
+  font-size: 12px; font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(16, 23, 40, 0.92);
+  color: var(--text);
+  cursor: pointer;
+}
+.coord-jump button:hover { border-color: var(--accent-2); color: var(--accent-2); }
+
+.measure-chip {
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(16, 23, 40, 0.94);
+  border: 1px solid var(--accent-2);
+  border-radius: 99px;
+  padding: 7px 8px 7px 14px;
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.measure-chip strong { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.measure-chip button {
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 99px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.measure-chip button:hover:not(:disabled) { border-color: var(--accent-2); color: var(--accent-2); }
+.measure-chip button:disabled { opacity: 0.45; cursor: default; }
+
 /* ---------- Marcadores ---------- */
 .g6-marker-wrap { background: none !important; border: none !important; }
 /* virtualização: fora do viewport não ocupa paint/layout (display !important

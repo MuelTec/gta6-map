@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GAME_CRS, toLatLng, VIEW_BOUNDS, LEONIDA_BOUNDS } from './GameCRS';
@@ -100,6 +100,13 @@ export default function MapView({
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const baseLayersRef = useRef<{ image: L.ImageOverlay; tiles: L.TileLayer } | null>(null);
   const [base, setBase] = useState<BaseMode>('tiles');
+  // --- coordenadas e medidor de distância ---
+  const [measuring, setMeasuring] = useState(false);
+  const [measurePts, setMeasurePts] = useState<Array<{ x: number; y: number }>>([]);
+  const [jumpVal, setJumpVal] = useState('');
+  const coordRef = useRef<HTMLSpanElement>(null);
+  /** última coordenada exibida, no formato "x, y" (pronto para copiar/colar) */
+  const lastCoordRef = useRef('');
   const handlersRef = useRef({
     onSelect,
     onToggleFound,
@@ -413,6 +420,117 @@ export default function MapView({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // --- leitura de coordenadas do cursor (escreve direto no DOM, sem re-render) ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const show = (x: number, y: number) => {
+      const xi = Math.round(x);
+      const yi = Math.round(y);
+      lastCoordRef.current = `${xi}, ${yi}`;
+      if (coordRef.current) coordRef.current.textContent = `X ${xi} · Y ${yi}`;
+    };
+    const onMove = (e: L.LeafletMouseEvent) => show(e.latlng.lng, e.latlng.lat);
+    const onOut = () => {
+      const c = map.getCenter();
+      show(c.lng, c.lat);
+    };
+    map.on('mousemove', onMove);
+    map.on('mouseout', onOut);
+    onOut();
+    return () => {
+      map.off('mousemove', onMove);
+      map.off('mouseout', onOut);
+    };
+  }, []);
+
+  // --- modo medir: cada clique no mapa adiciona um ponto ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (picking) {
+      // escolher posição para adicionar local tem prioridade
+      setMeasuring(false);
+      setMeasurePts([]);
+      return;
+    }
+    if (!measuring) return;
+    const onClick = (e: L.LeafletMouseEvent) => {
+      setMeasurePts((prev) => [...prev, { x: e.latlng.lng, y: e.latlng.lat }]);
+    };
+    map.on('click', onClick);
+    return () => {
+      map.off('click', onClick);
+    };
+  }, [measuring, picking]);
+
+  // --- desenha a linha e os vértices do medidor ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !measuring || measurePts.length === 0) return;
+    const latlngs = measurePts.map((p) => toLatLng(p.x, p.y));
+    const line = L.polyline(latlngs, { color: '#22d3ee', weight: 3, dashArray: '6 6' });
+    const dots = measurePts.map((p) =>
+      L.circleMarker(toLatLng(p.x, p.y), {
+        radius: 5,
+        color: '#fff',
+        weight: 2,
+        fillColor: '#22d3ee',
+        fillOpacity: 1,
+      }),
+    );
+    line.addTo(map);
+    for (const d of dots) d.addTo(map);
+    return () => {
+      map.removeLayer(line);
+      for (const d of dots) map.removeLayer(d);
+    };
+  }, [measuring, measurePts]);
+
+  // --- Esc sai do modo medir ---
+  useEffect(() => {
+    if (!measuring) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMeasuring(false);
+        setMeasurePts([]);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [measuring]);
+
+  // distância total (unidade de jogo ≈ metro — ver GameCRS.ts)
+  const measureTotal = useMemo(() => {
+    let t = 0;
+    for (let i = 1; i < measurePts.length; i++) {
+      t += Math.hypot(measurePts[i].x - measurePts[i - 1].x, measurePts[i].y - measurePts[i - 1].y);
+    }
+    return t;
+  }, [measurePts]);
+
+  const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
+
+  const toggleMeasure = () => {
+    setMeasuring((v) => {
+      if (v) setMeasurePts([]);
+      return !v;
+    });
+  };
+
+  const onJump = (e: FormEvent) => {
+    e.preventDefault();
+    const m = jumpVal.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+    if (!m) return;
+    const x = parseFloat(m[1].replace(',', '.'));
+    const y = parseFloat(m[2].replace(',', '.'));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.setView(toLatLng(x, y), Math.max(map.getZoom(), 6), { animate: true });
+    setJumpVal('');
+  };
+
   return (
     <div className="map-shell">
       <div ref={containerRef} className="map-el" />
@@ -442,6 +560,14 @@ export default function MapView({
         </button>
         <button
           type="button"
+          className={measuring ? 'is-active' : ''}
+          title="Medir distância — clique no mapa para adicionar pontos"
+          onClick={toggleMeasure}
+        >
+          📐
+        </button>
+        <button
+          type="button"
           className={base === 'tiles' ? 'is-active' : ''}
           title={
             base === 'tiles'
@@ -452,6 +578,45 @@ export default function MapView({
         >
           {base === 'tiles' ? '🛰️' : '🗺️'}
         </button>
+      </div>
+      {measuring && (
+        <div className="measure-chip">
+          <span>
+            📐 {measurePts.length} {measurePts.length === 1 ? 'ponto' : 'pontos'} ·{' '}
+            <strong>{fmtDist(measureTotal)}</strong>
+          </span>
+          <button type="button" onClick={() => setMeasurePts([])} disabled={measurePts.length === 0}>
+            Limpar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMeasuring(false);
+              setMeasurePts([]);
+            }}
+          >
+            Sair
+          </button>
+        </div>
+      )}
+      <div className="coord-panel">
+        <button
+          type="button"
+          className="coord-readout"
+          title="Copiar coordenadas (x, y)"
+          onClick={() => onCopy(lastCoordRef.current)}
+        >
+          📍 <span ref={coordRef}>—</span>
+        </button>
+        <form className="coord-jump" onSubmit={onJump}>
+          <input
+            value={jumpVal}
+            onChange={(e) => setJumpVal(e.target.value)}
+            placeholder="ir para: x, y"
+            aria-label="Ir para coordenada"
+          />
+          <button type="submit">Ir</button>
+        </form>
       </div>
       <div className="map-credit">
         Projeto de fã · não afiliado à Rockstar / Take-Two
