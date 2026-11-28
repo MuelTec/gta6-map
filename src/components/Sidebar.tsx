@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { MASTER_META, SUB_LABELS, subColor } from '../data/categories';
 import type { Marker, MasterId } from '../types';
 
@@ -39,6 +39,7 @@ const MASTER_ORDER: MasterId[] = ['carros', 'cofres', 'armas', 'lojas', 'colecio
 
 export default function Sidebar(p: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showCredits, setShowCredits] = useState(false);
 
   const groups = useMemo(
     () => MASTER_ORDER.filter((id) => MASTER_META[id]).map((id) => ({
@@ -75,25 +76,10 @@ export default function Sidebar(p: Props) {
         <div className="head-actions">
           <button
             type="button"
-            className="ghost codes-btn"
-            onClick={p.onOpenCodes}
-            title="Guia de códigos e senhas"
-          >
-            🔑 Códigos
-          </button>
-          <button
-            type="button"
-            className="ghost codes-btn"
-            onClick={p.onOpenStats}
-            title="Estatísticas de progresso por categoria e distrito"
-          >
-            📊 Stats
-          </button>
-          <button
-            type="button"
             className="ghost coll-btn"
             onClick={() => p.setCollapsed(true)}
             title="Recolher menu"
+            aria-label="Recolher menu"
           >
             ◀
           </button>
@@ -140,7 +126,7 @@ export default function Sidebar(p: Props) {
         <button type="button" className="ghost" onClick={() => p.setAllMasters(false)}>
           Nada
         </button>
-        <label className="switch">
+        <label className="switch" title="Esconder do mapa os locais que você já marcou">
           <input
             type="checkbox"
             checked={p.hiddenFound}
@@ -148,10 +134,7 @@ export default function Sidebar(p: Props) {
           />
           <span>Esconder achados</span>
         </label>
-      </div>
-
-      <div className="quick-row quick-row--sub">
-        <label className="switch">
+        <label className="switch" title="Mostrar as subcategorias de cada categoria">
           <input
             type="checkbox"
             checked={p.showSubs}
@@ -166,18 +149,19 @@ export default function Sidebar(p: Props) {
         )}
       </div>
 
-      <button type="button" className="add-place" onClick={p.onAdd}>
-        ➕ Adicionar local no mapa
-      </button>
-
-      <button
-        type="button"
-        className={`add-place select-toggle ${p.selectMode ? 'is-on' : ''}`}
-        onClick={p.onToggleSelectMode}
-        title="Selecionar vários locais de uma vez para marcar em lote ou montar rota"
-      >
-        {p.selectMode ? '☑ Concluir seleção' : '☑ Selecionar locais'}
-      </button>
+      <div className="action-row">
+        <button type="button" className="add-place" onClick={p.onAdd} title="Adicionar local no mapa (atalho: A)">
+          ➕ Adicionar
+        </button>
+        <button
+          type="button"
+          className={`add-place select-toggle ${p.selectMode ? 'is-on' : ''}`}
+          onClick={p.onToggleSelectMode}
+          title="Selecionar vários locais de uma vez para marcar em lote ou montar rota"
+        >
+          {p.selectMode ? '☑ Concluir' : '☑ Selecionar'}
+        </button>
+      </div>
 
       <nav className="cats">
         {groups.map(({ id, meta, subs }) => {
@@ -227,22 +211,59 @@ export default function Sidebar(p: Props) {
 
       <footer className="side-foot">
         <div className="foot-row">
-          <button type="button" className="ghost" onClick={p.onExport}>
-            ⬇ Exportar
+          <button type="button" className="ghost" onClick={p.onOpenCodes} title="Guia de códigos e senhas">
+            🔑
           </button>
-          <button type="button" className="ghost" onClick={() => fileRef.current?.click()}>
-            ⬆ Importar
+          <button
+            type="button"
+            className="ghost"
+            onClick={p.onOpenStats}
+            title="Estatísticas de progresso por categoria e distrito"
+          >
+            📊
           </button>
-          <button type="button" className="ghost danger" onClick={p.onReset}>
-            ↺ Zerar
+          <button type="button" className="ghost" onClick={p.onExport} title="Exportar progresso (JSON)">
+            ⬇
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => fileRef.current?.click()}
+            title="Importar progresso (JSON)"
+          >
+            ⬆
+          </button>
+          <button type="button" className="ghost danger" onClick={p.onReset} title="Zerar todo o progresso">
+            ↺
+          </button>
+          {p.removedCount > 0 && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={p.onRestoreRemoved}
+              title={`Restaurar locais removidos (${p.removedCount})`}
+            >
+              ↩
+            </button>
+          )}
+          <button
+            type="button"
+            className={`ghost ${showCredits ? 'is-on' : ''}`}
+            onClick={() => setShowCredits((v) => !v)}
+            title="Créditos e fontes dos dados"
+            aria-expanded={showCredits}
+          >
+            ℹ️
           </button>
         </div>
-        {p.removedCount > 0 && (
-          <div className="foot-row">
-            <button type="button" className="ghost" onClick={p.onRestoreRemoved}>
-              ↩ Restaurar locais removidos ({p.removedCount})
-            </button>
-          </div>
+        {showCredits && (
+          <p className="legal">
+            Projeto de fã, sem fins lucrativos. Não afiliado à Rockstar Games ou Take-Two.
+            <br />
+            Dados de locais: <a href="https://gta6route.com">gta6route.com</a> (CC BY 4.0) ·
+            Tiles: <a href="https://map.gtadb.org">map.gtadb.org</a> — GTA VI Mapping
+            Community (CC BY 4.0)
+          </p>
         )}
         <input
           ref={fileRef}
@@ -255,13 +276,6 @@ export default function Sidebar(p: Props) {
             e.target.value = '';
           }}
         />
-        <p className="legal">
-          Projeto de fã, sem fins lucrativos. Não afiliado à Rockstar Games ou Take-Two.
-          <br />
-          Dados de locais: <a href="https://gta6route.com">gta6route.com</a> (CC BY 4.0) ·
-          Tiles: <a href="https://map.gtadb.org">map.gtadb.org</a> — GTA VI Mapping
-          Community (CC BY 4.0)
-        </p>
       </footer>
     </aside>
   );

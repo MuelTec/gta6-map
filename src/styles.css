@@ -52,7 +52,7 @@ a { color: var(--accent-2); }
 }
 
 .side-head {
-  padding: 16px 16px 10px;
+  padding: 12px 14px 8px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -73,7 +73,6 @@ a { color: var(--accent-2); }
 .brand p { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); }
 
 .head-actions { display: flex; gap: 6px; flex: none; }
-.codes-btn { white-space: nowrap; }
 .close-btn { display: none; }
 
 .side-progress {
@@ -128,13 +127,8 @@ a { color: var(--accent-2); }
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  padding: 0 16px 12px;
-}
-.quick-row--sub {
-  padding-top: 0;
-  margin-top: -6px;
+  padding: 0 16px 10px;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
 }
 
 .ghost {
@@ -157,7 +151,6 @@ a { color: var(--accent-2); }
   font-size: 12px;
   color: var(--muted);
   cursor: pointer;
-  margin-left: auto;
 }
 .switch input { accent-color: var(--accent); }
 
@@ -250,13 +243,24 @@ a { color: var(--accent-2); }
 
 .side-foot {
   border-top: 1px solid var(--line);
-  padding: 10px 16px 14px;
+  padding: 8px 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .foot-row { display: flex; gap: 6px; }
-.foot-row .ghost { flex: 1; }
+.foot-row .ghost {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 15px;
+  text-align: center;
+  line-height: 1.2;
+}
+.foot-row .ghost.is-on {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  background: rgba(34, 211, 238, 0.12);
+}
 
 .legal {
   margin: 4px 0 0;
@@ -411,7 +415,18 @@ a { color: var(--accent-2); }
   backdrop-filter: blur(4px);
   white-space: nowrap;
 }
-.select-toggle { margin-top: 8px; }
+/* linha dupla: Adicionar + Selecionar lado a lado */
+.action-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+.action-row .add-place {
+  flex: 1;
+  margin: 0;
+  padding: 8px 6px;
+}
+.select-toggle { margin-top: 0; }
 .select-toggle.is-on {
   border-color: var(--accent);
   background: rgba(255, 61, 129, 0.18);
@@ -1036,7 +1051,6 @@ a { color: var(--accent-2); }
 @media (max-width: 900px) {
   .fab { display: block; }
   .close-btn { display: block; }
-  .codes-btn { display: none; }
 
   .drawer {
     display: block;
