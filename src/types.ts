@@ -63,4 +63,8 @@ export interface ProgressExport {
   removed?: string[];
   /** senhas deixadas pelo usuário por local */
   codes?: Record<string, string>;
+  /** ids de locais favoritados com estrela */
+  favorites?: string[];
+  /** anotações pessoais por local */
+  notes?: Record<string, string>;
 }

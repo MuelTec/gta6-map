@@ -14,9 +14,16 @@ export function escapeHtml(s: string): string {
  * Conteúdo do popup de cada marcador.
  * - O código/senha aparece SEMPRE visível, com botão de copiar.
  * - Ao encontrar um local, surge o campo para deixar a senha (adicionar/editar).
+ * - Estrela de favorito e anotação pessoal em qualquer local.
  * - Todo local pode ser removido do mapa (os oficiais ficam guardados para restaurar).
  */
-export function buildPopupContent(m: Marker, isFound: boolean, userCode?: string): string {
+export function buildPopupContent(
+  m: Marker,
+  isFound: boolean,
+  userCode?: string,
+  isFav?: boolean,
+  userNote?: string,
+): string {
   const meta = MASTER_META[m.master];
   const sub = SUB_LABELS[m.cat] ?? gtaCat(m.cat)?.name ?? meta.label;
   const color = subColor(m.sub, m.master);
@@ -29,6 +36,8 @@ export function buildPopupContent(m: Marker, isFound: boolean, userCode?: string
       <div class="pop__head">
         <span class="pop__badge" style="--c:${color}">${subIconHtml(m.sub, m.master, 12)} ${escapeHtml(sub)}</span>
         ${isFound ? '<span class="pop__ok">✓ encontrado</span>' : ''}
+        <button type="button" class="pop__fav ${isFav ? 'is-on' : ''}" data-act="fav" data-id="${escapeHtml(m.id)}"
+          title="${isFav ? 'Remover dos favoritos' : 'Favoritar (estrela)'}">${isFav ? '★' : '☆'}</button>
       </div>
       <h3 class="pop__title">${escapeHtml(m.name)}</h3>
       ${m.district ? `<div class="pop__where">📍 ${escapeHtml(m.district)}</div>` : ''}
@@ -56,6 +65,11 @@ export function buildPopupContent(m: Marker, isFound: boolean, userCode?: string
           : ''
       }
       ${m.note ? `<p class="pop__note">${escapeHtml(m.note)}</p>` : ''}
+      <div class="pop__note-row">
+        <textarea data-note-input rows="2" maxlength="300"
+          placeholder="Anotação pessoal (só você vê)…">${escapeHtml(userNote ?? '')}</textarea>
+        <button type="button" class="pop__save-note" data-act="savenote" data-id="${escapeHtml(m.id)}">Salvar nota</button>
+      </div>
       <button type="button" class="pop__found ${isFound ? 'is-on' : ''}" data-act="found" data-id="${escapeHtml(m.id)}">
         ${isFound ? '✓ Encontrado — clicar para desmarcar' : 'Marcar como encontrado'}
       </button>

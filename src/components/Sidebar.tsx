@@ -31,6 +31,7 @@ type Props = {
   onRestoreRemoved: () => void;
   selectMode: boolean;
   onToggleSelectMode: () => void;
+  onOpenStats: () => void;
   onClose?: () => void;
 };
 
@@ -79,6 +80,14 @@ export default function Sidebar(p: Props) {
             title="Guia de códigos e senhas"
           >
             🔑 Códigos
+          </button>
+          <button
+            type="button"
+            className="ghost codes-btn"
+            onClick={p.onOpenStats}
+            title="Estatísticas de progresso por categoria e distrito"
+          >
+            📊 Stats
           </button>
           <button
             type="button"

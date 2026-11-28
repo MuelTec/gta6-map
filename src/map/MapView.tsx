@@ -59,6 +59,10 @@ type Props = {
   onClearSelection: () => void;
   onMarkSelected: (mark: boolean) => void;
   onExitSelect: () => void;
+  favorites: Set<string>;
+  notes: Record<string, string>;
+  onToggleFavorite: (id: string) => void;
+  onSaveNote: (id: string, text: string) => void;
   onToggleFound: (id: string) => void;
   onCopy: (text: string) => void;
   onRemove: (id: string) => void;
@@ -104,6 +108,10 @@ export default function MapView({
   onClearSelection,
   onMarkSelected,
   onExitSelect,
+  favorites,
+  notes,
+  onToggleFavorite,
+  onSaveNote,
   onToggleFound,
   onCopy,
   onRemove,
@@ -129,16 +137,30 @@ export default function MapView({
     onToggleSelect,
     selectMode,
     onToggleFound,
+    onToggleFavorite,
+    onSaveNote,
     onCopy,
     onPick,
     onRemove,
     onSaveCode,
     onClearCode,
   });
-  handlersRef.current = { onSelect, onToggleSelect, selectMode, onToggleFound, onCopy, onPick, onRemove, onSaveCode, onClearCode };
+  handlersRef.current = {
+    onSelect,
+    onToggleSelect,
+    selectMode,
+    onToggleFound,
+    onToggleFavorite,
+    onSaveNote,
+    onCopy,
+    onPick,
+    onRemove,
+    onSaveCode,
+    onClearCode,
+  };
   // estado "vivo" para o conteúdo do popup (avaliado a cada abertura)
-  const liveRef = useRef({ found, customCodes });
-  liveRef.current = { found, customCodes };
+  const liveRef = useRef({ found, customCodes, favorites, notes });
+  liveRef.current = { found, customCodes, favorites, notes };
 
   // --- init map once ---
   useEffect(() => {
@@ -239,6 +261,14 @@ export default function MapView({
           handlersRef.current.onClearCode(id);
           map.closePopup();
         }
+        if (act === 'fav' && id) {
+          handlersRef.current.onToggleFavorite(id);
+        }
+        if (act === 'savenote' && id) {
+          const ta = (root as HTMLElement).querySelector('[data-note-input]') as HTMLTextAreaElement | null;
+          handlersRef.current.onSaveNote(id, ta?.value ?? '');
+          map.closePopup();
+        }
       });
     });
 
@@ -318,12 +348,22 @@ export default function MapView({
         keyboard: true,
       });
 
-      lm.bindPopup(() => buildPopupContent(m, liveRef.current.found.has(m.id), liveRef.current.customCodes[m.id]), {
-        maxWidth: 320,
-        minWidth: 240,
-        closeButton: true,
-        autoPanPadding: [30, 30],
-      });
+      lm.bindPopup(
+        () =>
+          buildPopupContent(
+            m,
+            liveRef.current.found.has(m.id),
+            liveRef.current.customCodes[m.id],
+            liveRef.current.favorites.has(m.id),
+            liveRef.current.notes[m.id],
+          ),
+        {
+          maxWidth: 320,
+          minWidth: 240,
+          closeButton: true,
+          autoPanPadding: [30, 30],
+        },
+      );
 
       lm.on('click', () => {
         if (handlersRef.current.selectMode) {
@@ -355,6 +395,7 @@ export default function MapView({
           dot.classList.toggle('is-found', found.has(m.id));
           dot.classList.toggle('is-sel', selectedId === m.id);
           dot.classList.toggle('is-picked', selectedIds.has(m.id));
+          dot.classList.toggle('is-fav', favorites.has(m.id));
         }
       }
       if (!visible && lm.isPopupOpen()) lm.closePopup();
@@ -363,10 +404,16 @@ export default function MapView({
       if (lm.isPopupOpen()) {
         // (cast: o Leaflet aceita função em runtime, mas o tipo só declara string/HTMLElement)
         lm.setPopupContent((() =>
-          buildPopupContent(m, liveRef.current.found.has(m.id), liveRef.current.customCodes[m.id])) as unknown as string);
+          buildPopupContent(
+            m,
+            liveRef.current.found.has(m.id),
+            liveRef.current.customCodes[m.id],
+            liveRef.current.favorites.has(m.id),
+            liveRef.current.notes[m.id],
+          )) as unknown as string);
       }
     }
-  }, [markers, query, activeMasters, activeSubs, hiddenFound, found, selectedId, selectedIds]);
+  }, [markers, query, activeMasters, activeSubs, hiddenFound, found, selectedId, selectedIds, favorites]);
 
   // --- virtualização: esconde marcadores fora do viewport ---
   // Fora da tela não há o que pintar; sem isso, a animação de zoom precisa

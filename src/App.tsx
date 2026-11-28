@@ -3,6 +3,7 @@ import MapView from './map/MapView';
 import Sidebar from './components/Sidebar';
 import CodesPanel from './components/CodesPanel';
 import AddMarkerForm from './components/AddMarkerForm';
+import StatsPanel from './components/StatsPanel';
 import { ALL_MASTERS, masterForSub } from './data/categories';
 import type { CodeEntry, Marker, MasterId, ProgressExport } from './types';
 
@@ -11,6 +12,8 @@ const LS_SETTINGS = 'gta6:settings:v1';
 const LS_CUSTOM = 'gta6:custom:v1';
 const LS_REMOVED = 'gta6:removed:v1';
 const LS_CODES = 'gta6:codes:v1';
+const LS_FAVS = 'gta6:favs:v1';
+const LS_NOTES = 'gta6:notes:v1';
 
 function loadFound(): Set<string> {
   try {
@@ -47,8 +50,23 @@ function loadRemoved(): string[] {
 }
 
 function loadCodes(): Record<string, string> {
+  return loadNoteMap(LS_CODES);
+}
+
+function loadFavorites(): Set<string> {
   try {
-    const raw = localStorage.getItem(LS_CODES);
+    const raw = localStorage.getItem(LS_FAVS);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function loadNoteMap(key: string): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(key);
     if (!raw) return {};
     const obj = JSON.parse(raw) as Record<string, unknown>;
     if (!obj || typeof obj !== 'object') return {};
@@ -58,6 +76,10 @@ function loadCodes(): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+function loadNotes(): Record<string, string> {
+  return loadNoteMap(LS_NOTES);
 }
 
 function loadSettings(): { hideFound: boolean; masters: Set<MasterId> } {
@@ -82,7 +104,15 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const initial = useMemo(
-    () => ({ found: loadFound(), settings: loadSettings(), custom: loadCustom(), removed: loadRemoved(), userCodes: loadCodes() }),
+    () => ({
+      found: loadFound(),
+      settings: loadSettings(),
+      custom: loadCustom(),
+      removed: loadRemoved(),
+      userCodes: loadCodes(),
+      favorites: loadFavorites(),
+      notes: loadNotes(),
+    }),
     [],
   );
   const [found, setFound] = useState<Set<string>>(initial.found);
@@ -101,6 +131,9 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCodes, setShowCodes] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(initial.favorites);
+  const [notes, setNotes] = useState<Record<string, string>>(initial.notes);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -147,6 +180,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(LS_CODES, JSON.stringify(customCodes));
   }, [customCodes]);
+
+  useEffect(() => {
+    localStorage.setItem(LS_FAVS, JSON.stringify([...favorites]));
+  }, [favorites]);
+
+  useEffect(() => {
+    localStorage.setItem(LS_NOTES, JSON.stringify(notes));
+  }, [notes]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -209,7 +250,8 @@ export default function App() {
         else if (selectMode) {
           setSelectMode(false);
           setSelectedIds(new Set());
-        } else if (showCodes) setShowCodes(false);
+        } else if (showStats) setShowStats(false);
+        else if (showCodes) setShowCodes(false);
         else if (drawerOpen) setDrawerOpen(false);
         return;
       }
@@ -228,7 +270,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [picking, pendingPos, showCodes, drawerOpen, selectMode, startAdd]);
+  }, [picking, pendingPos, showCodes, showStats, drawerOpen, selectMode, startAdd]);
 
   const cancelPick = useCallback(() => {
     setPicking(false);
@@ -280,6 +322,16 @@ export default function App() {
           delete next[id];
           return next;
         });
+        setFavorites((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setNotes((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         setFound((prev) => {
           const next = new Set(prev);
           next.delete(id);
@@ -305,6 +357,27 @@ export default function App() {
       return next;
     });
     setToast('Senha removida');
+  }, []);
+
+  // --- favoritos (estrela) e anotações pessoais ---
+  const toggleFavorite = useCallback((id: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const saveNote = useCallback((id: string, text: string) => {
+    const v = text.trim();
+    setNotes((prev) => {
+      const next = { ...prev };
+      if (v) next[id] = v;
+      else delete next[id];
+      return next;
+    });
+    setToast(v ? 'Nota salva' : 'Nota removida');
   }, []);
 
   const restoreRemoved = useCallback(() => {
@@ -428,6 +501,8 @@ export default function App() {
       custom,
       removed,
       codes: customCodes,
+      favorites: [...favorites],
+      notes,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -437,7 +512,7 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
     setToast('Progresso exportado');
-  }, [found, custom, removed, customCodes]);
+  }, [found, custom, removed, customCodes, favorites, notes]);
 
   const onImport = useCallback(
     (file: File) => {
@@ -464,7 +539,20 @@ export default function App() {
             for (const [k, v] of Object.entries(data.codes)) if (typeof v === 'string') out[k] = v;
             setCustomCodes(out);
           }
-          const extras = (data.custom?.length ?? 0) + (data.removed?.length ?? 0) + Object.keys(data.codes ?? {}).length;
+          if (Array.isArray(data.favorites)) {
+            setFavorites(new Set(data.favorites.filter((x): x is string => typeof x === 'string')));
+          }
+          if (data.notes && typeof data.notes === 'object') {
+            const out: Record<string, string> = {};
+            for (const [k, v] of Object.entries(data.notes)) if (typeof v === 'string') out[k] = v;
+            setNotes(out);
+          }
+          const extras =
+            (data.custom?.length ?? 0) +
+            (data.removed?.length ?? 0) +
+            Object.keys(data.codes ?? {}).length +
+            (data.favorites?.length ?? 0) +
+            Object.keys(data.notes ?? {}).length;
           setToast(`Importado: ${data.found.length} achados${extras ? ` + ${extras} itens seus` : ''}`);
         })
         .catch((e: unknown) => setToast(e instanceof Error ? e.message : 'Falha ao importar'));
@@ -539,6 +627,10 @@ export default function App() {
           onRestoreRemoved={restoreRemoved}
           selectMode={selectMode}
           onToggleSelectMode={toggleSelectMode}
+          onOpenStats={() => {
+            setShowStats(true);
+            setDrawerOpen(false);
+          }}
           onClose={() => setDrawerOpen(false)}
         />
       </div>
@@ -580,6 +672,10 @@ export default function App() {
         onRemove={removeMarker}
         onSaveCode={saveCode}
         onClearCode={clearCode}
+        favorites={favorites}
+        notes={notes}
+        onToggleFavorite={toggleFavorite}
+        onSaveNote={saveNote}
       />
 
       {picking && (
@@ -605,6 +701,10 @@ export default function App() {
       )}
 
       {showCodes && <CodesPanel codes={codes} onCopy={copy} onClose={() => setShowCodes(false)} />}
+
+      {showStats && (
+        <StatsPanel markers={markers} found={found} favorites={favorites} notes={notes} onClose={() => setShowStats(false)} />
+      )}
 
       {toast && <div className="toast">{toast}</div>}
     </div>
