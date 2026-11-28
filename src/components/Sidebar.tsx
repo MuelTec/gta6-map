@@ -29,6 +29,8 @@ type Props = {
   onAdd: () => void;
   removedCount: number;
   onRestoreRemoved: () => void;
+  selectMode: boolean;
+  onToggleSelectMode: () => void;
   onClose?: () => void;
 };
 
@@ -157,6 +159,15 @@ export default function Sidebar(p: Props) {
 
       <button type="button" className="add-place" onClick={p.onAdd}>
         ➕ Adicionar local no mapa
+      </button>
+
+      <button
+        type="button"
+        className={`add-place select-toggle ${p.selectMode ? 'is-on' : ''}`}
+        onClick={p.onToggleSelectMode}
+        title="Selecionar vários locais de uma vez para marcar em lote ou montar rota"
+      >
+        {p.selectMode ? '☑ Concluir seleção' : '☑ Selecionar locais'}
       </button>
 
       <nav className="cats">

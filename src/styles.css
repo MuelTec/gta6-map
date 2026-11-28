@@ -312,6 +312,65 @@ a { color: var(--accent-2); }
   backdrop-filter: blur(4px);
 }
 
+/* ---------- Seleção em lote / rota ---------- */
+.select-bar {
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 510;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(16, 23, 40, 0.95);
+  border: 1px solid var(--accent);
+  border-radius: 99px;
+  padding: 6px 8px 6px 14px;
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.select-count strong { color: var(--accent); font-variant-numeric: tabular-nums; }
+.select-bar button {
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 99px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.select-bar button:hover:not(:disabled) { border-color: var(--accent-2); color: var(--accent-2); }
+.select-bar button:disabled { opacity: 0.45; cursor: default; }
+.select-bar .select-primary {
+  border-color: var(--accent);
+  background: rgba(255, 61, 129, 0.2);
+  color: #ffd166;
+}
+.select-bar .select-primary:hover:not(:disabled) { background: rgba(255, 61, 129, 0.4); color: #fff; }
+.select-hint {
+  position: absolute;
+  top: 64px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 510;
+  font-size: 12.5px;
+  color: var(--accent-2);
+  background: rgba(11, 16, 32, 0.9);
+  border: 1px dashed var(--accent-2);
+  border-radius: 99px;
+  padding: 5px 14px;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+}
+.select-toggle { margin-top: 8px; }
+.select-toggle.is-on {
+  border-color: var(--accent);
+  background: rgba(255, 61, 129, 0.18);
+  color: #ffd166;
+}
+
 /* ---------- Coordenadas e medidor ---------- */
 .coord-panel {
   position: absolute;
@@ -417,6 +476,27 @@ a { color: var(--accent-2); }
   animation: pulse 1.6s ease-out infinite;
   opacity: 1;
   filter: none;
+}
+/* selecionado no modo seleção em lote (anel ciano, distinto do destaque) */
+.g6-marker.is-picked {
+  transform: scale(1.22);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.6), 0 0 0 5px var(--accent-2);
+  opacity: 1;
+  filter: none;
+}
+.g6-marker.is-picked::after {
+  content: '✓';
+  position: absolute;
+  right: -5px; top: -7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-2);
+  border-radius: 50%;
+  width: 14px; height: 14px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
 }
 @keyframes pulse {
   0% { box-shadow: 0 3px 12px rgba(0,0,0,.6), 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent); }

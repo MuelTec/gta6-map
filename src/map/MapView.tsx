@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GAME_CRS, toLatLng, VIEW_BOUNDS, LEONIDA_BOUNDS } from './GameCRS';
 import { buildPopupContent } from './popup';
+import { nearestNeighborOrder, pathDistance, fmtMeters, type Pt } from './route';
 import { subColor, subIconHtml } from '../data/categories';
 import type { Marker, MasterId } from '../types';
 
@@ -47,9 +48,17 @@ type Props = {
   customCodes: Record<string, string>;
   /** modo "escolher posição" para adicionar um local */
   picking: boolean;
+  /** modo seleção em lote (clique seleciona em vez de abrir o popup) */
+  selectMode: boolean;
+  selectedIds: Set<string>;
   onAddClick: () => void;
   onPick: (x: number, y: number) => void;
   onSelect: (id: string | null) => void;
+  onToggleSelect: (id: string) => void;
+  onSelectMany: (ids: string[]) => void;
+  onClearSelection: () => void;
+  onMarkSelected: (mark: boolean) => void;
+  onExitSelect: () => void;
   onToggleFound: (id: string) => void;
   onCopy: (text: string) => void;
   onRemove: (id: string) => void;
@@ -85,9 +94,16 @@ export default function MapView({
   selectedId,
   customCodes,
   picking,
+  selectMode,
+  selectedIds,
   onAddClick,
   onPick,
   onSelect,
+  onToggleSelect,
+  onSelectMany,
+  onClearSelection,
+  onMarkSelected,
+  onExitSelect,
   onToggleFound,
   onCopy,
   onRemove,
@@ -103,12 +119,15 @@ export default function MapView({
   // --- coordenadas e medidor de distância ---
   const [measuring, setMeasuring] = useState(false);
   const [measurePts, setMeasurePts] = useState<Array<{ x: number; y: number }>>([]);
+  const [rectArm, setRectArm] = useState(false);
   const [jumpVal, setJumpVal] = useState('');
   const coordRef = useRef<HTMLSpanElement>(null);
   /** última coordenada exibida, no formato "x, y" (pronto para copiar/colar) */
   const lastCoordRef = useRef('');
   const handlersRef = useRef({
     onSelect,
+    onToggleSelect,
+    selectMode,
     onToggleFound,
     onCopy,
     onPick,
@@ -116,7 +135,7 @@ export default function MapView({
     onSaveCode,
     onClearCode,
   });
-  handlersRef.current = { onSelect, onToggleFound, onCopy, onPick, onRemove, onSaveCode, onClearCode };
+  handlersRef.current = { onSelect, onToggleSelect, selectMode, onToggleFound, onCopy, onPick, onRemove, onSaveCode, onClearCode };
   // estado "vivo" para o conteúdo do popup (avaliado a cada abertura)
   const liveRef = useRef({ found, customCodes });
   liveRef.current = { found, customCodes };
@@ -306,7 +325,16 @@ export default function MapView({
         autoPanPadding: [30, 30],
       });
 
-      lm.on('click', () => handlersRef.current.onSelect(m.id));
+      lm.on('click', () => {
+        if (handlersRef.current.selectMode) {
+          // modo seleção: alterna a seleção e fecha o popup que o Leaflet
+          // abriu no mesmo tick (sem chegar a ser pintado)
+          handlersRef.current.onToggleSelect(m.id);
+          mapRef.current?.closePopup();
+          return;
+        }
+        handlersRef.current.onSelect(m.id);
+      });
       lm.addTo(layer);
       markersRef.current.set(m.id, lm);
     }
@@ -326,6 +354,7 @@ export default function MapView({
         if (dot) {
           dot.classList.toggle('is-found', found.has(m.id));
           dot.classList.toggle('is-sel', selectedId === m.id);
+          dot.classList.toggle('is-picked', selectedIds.has(m.id));
         }
       }
       if (!visible && lm.isPopupOpen()) lm.closePopup();
@@ -337,7 +366,7 @@ export default function MapView({
           buildPopupContent(m, liveRef.current.found.has(m.id), liveRef.current.customCodes[m.id])) as unknown as string);
       }
     }
-  }, [markers, query, activeMasters, activeSubs, hiddenFound, found, selectedId]);
+  }, [markers, query, activeMasters, activeSubs, hiddenFound, found, selectedId, selectedIds]);
 
   // --- virtualização: esconde marcadores fora do viewport ---
   // Fora da tela não há o que pintar; sem isso, a animação de zoom precisa
@@ -487,18 +516,134 @@ export default function MapView({
     };
   }, [measuring, measurePts]);
 
-  // --- Esc sai do modo medir ---
+  // --- Esc sai do modo medir (captura: não deixa o Esc global fechar outras camadas) ---
   useEffect(() => {
     if (!measuring) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
         setMeasuring(false);
         setMeasurePts([]);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [measuring]);
+
+  // --- Esc cancela a seleção por retângulo (mantém o modo seleção ativo) ---
+  useEffect(() => {
+    if (!rectArm) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setRectArm(false);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [rectArm]);
+
+  // --- rota: liga os locais selecionados (ordem do vizinho mais próximo a partir do centro) ---
+  const routePoints = useMemo(() => {
+    const pts: Pt[] = [];
+    for (const m of markers) if (selectedIds.has(m.id)) pts.push({ x: m.x, y: m.y });
+    return pts;
+  }, [markers, selectedIds]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || routePoints.length < 2) return;
+    const c = map.getCenter();
+    const order = nearestNeighborOrder(routePoints, { x: c.lng, y: c.lat });
+    const line = L.polyline(
+      order.map((i) => toLatLng(routePoints[i].x, routePoints[i].y)),
+      { color: '#ff3d81', weight: 3, opacity: 0.9 },
+    );
+    line.addTo(map);
+    return () => {
+      map.removeLayer(line);
+    };
+  }, [routePoints]);
+
+  const routeInfo = useMemo(() => {
+    if (routePoints.length < 2) return null;
+    const c = mapRef.current?.getCenter();
+    const order = nearestNeighborOrder(routePoints, c ? { x: c.lng, y: c.lat } : routePoints[0]);
+    const ordered = order.map((i) => routePoints[i]);
+    return { n: routePoints.length, d: fmtMeters(pathDistance(ordered)) };
+  }, [routePoints]);
+
+  // --- seleção por retângulo: um arraste seleciona uma área inteira ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !rectArm) return;
+    map.dragging.disable();
+    let startPt: L.Point | null = null;
+    let rect: L.Rectangle | null = null;
+    const bounds = (a: L.Point, b: L.Point) =>
+      L.latLngBounds(
+        map.containerPointToLatLng(L.point(Math.min(a.x, b.x), Math.min(a.y, b.y))),
+        map.containerPointToLatLng(L.point(Math.max(a.x, b.x), Math.max(a.y, b.y))),
+      );
+    const finish = (b: L.Point) => {
+      const a = startPt;
+      if (rect) {
+        map.removeLayer(rect);
+        rect = null;
+      }
+      startPt = null;
+      // um retângulo por vez — volta a permitir pan em seguida
+      setRectArm(false);
+      if (!a) return;
+      // clique puro (sem arrastar) não seleciona nada
+      if (Math.abs(a.x - b.x) < 6 && Math.abs(a.y - b.y) < 6) return;
+      const minX = Math.min(a.x, b.x);
+      const maxX = Math.max(a.x, b.x);
+      const minY = Math.min(a.y, b.y);
+      const maxY = Math.max(a.y, b.y);
+      const ids: string[] = [];
+      for (const m of markers) {
+        if (!markerVisible(m, query, activeMasters, activeSubs, hiddenFound, found)) continue;
+        const lm = markersRef.current.get(m.id);
+        if (!lm) continue;
+        const p = map.latLngToContainerPoint(lm.getLatLng());
+        if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) ids.push(m.id);
+      }
+      if (ids.length) onSelectMany(ids);
+    };
+    const onDown = (e: L.LeafletMouseEvent) => {
+      // clicar num marcador não inicia retângulo
+      if ((e.originalEvent.target as HTMLElement | null)?.closest?.('.leaflet-marker-icon')) return;
+      startPt = e.containerPoint.clone();
+      rect = L.rectangle(bounds(startPt, startPt), {
+        color: '#22d3ee',
+        weight: 2,
+        dashArray: '4 4',
+        fillColor: '#22d3ee',
+        fillOpacity: 0.08,
+      }).addTo(map);
+    };
+    const onMove = (e: L.LeafletMouseEvent) => {
+      if (!startPt || !rect) return;
+      rect.setBounds(bounds(startPt, e.containerPoint));
+    };
+    const onUp = (e: L.LeafletMouseEvent) => finish(e.containerPoint);
+    const onWinUp = (ev: MouseEvent) => {
+      if (startPt) finish(map.mouseEventToContainerPoint(ev));
+    };
+    map.on('mousedown', onDown);
+    map.on('mousemove', onMove);
+    map.on('mouseup', onUp);
+    window.addEventListener('mouseup', onWinUp);
+    return () => {
+      map.off('mousedown', onDown);
+      map.off('mousemove', onMove);
+      map.off('mouseup', onUp);
+      window.removeEventListener('mouseup', onWinUp);
+      if (rect) map.removeLayer(rect);
+      map.dragging.enable();
+    };
+  }, [rectArm, markers, query, activeMasters, activeSubs, hiddenFound, found, onSelectMany]);
 
   // distância total (unidade de jogo ≈ metro — ver GameCRS.ts)
   const measureTotal = useMemo(() => {
@@ -531,6 +676,54 @@ export default function MapView({
     setJumpVal('');
   };
 
+  // --- próximo alvo / sorteio: locais não achados que passam nos filtros ---
+  const targetPool = (onlyNew: boolean): Marker[] => {
+    const pool = markers.filter((m) =>
+      markerVisible(m, query, activeMasters, activeSubs, hiddenFound, found) &&
+      (!onlyNew || !found.has(m.id)),
+    );
+    if (pool.length || !onlyNew) return pool;
+    return targetPool(false);
+  };
+
+  const focusOn = (m: Marker) => {
+    onSelect(m.id);
+    mapRef.current?.panTo(toLatLng(m.x, m.y), { animate: true, duration: 0.45 });
+    markersRef.current.get(m.id)?.openPopup();
+  };
+
+  const goNearest = () => {
+    const map = mapRef.current;
+    const pool = targetPool(true);
+    if (!map || !pool.length) return;
+    const c = map.getCenter();
+    let best = pool[0];
+    let bestD = Infinity;
+    for (const m of pool) {
+      const d = Math.hypot(m.x - c.lng, m.y - c.lat);
+      if (d < bestD) {
+        bestD = d;
+        best = m;
+      }
+    }
+    focusOn(best);
+  };
+
+  const goRandom = () => {
+    const pool = targetPool(true);
+    if (!pool.length) return;
+    focusOn(pool[Math.floor(Math.random() * pool.length)]);
+  };
+
+  // --- seleção em lote: seleciona todos os locais que passam nos filtros ---
+  const selectVisibleNow = () => {
+    const ids: string[] = [];
+    for (const m of markers) {
+      if (markerVisible(m, query, activeMasters, activeSubs, hiddenFound, found)) ids.push(m.id);
+    }
+    onSelectMany(ids);
+  };
+
   return (
     <div className="map-shell">
       <div ref={containerRef} className="map-el" />
@@ -560,6 +753,20 @@ export default function MapView({
         </button>
         <button
           type="button"
+          title="Ir para o local não achado mais próximo do centro"
+          onClick={goNearest}
+        >
+          🎯
+        </button>
+        <button
+          type="button"
+          title="Sortear um local não achado (respeita os filtros)"
+          onClick={goRandom}
+        >
+          🎲
+        </button>
+        <button
+          type="button"
           className={measuring ? 'is-active' : ''}
           title="Medir distância — clique no mapa para adicionar pontos"
           onClick={toggleMeasure}
@@ -579,6 +786,45 @@ export default function MapView({
           {base === 'tiles' ? '🛰️' : '🗺️'}
         </button>
       </div>
+      {selectMode && (
+        <div className="select-bar">
+          <span className="select-count">
+            ☑ <strong>{selectedIds.size}</strong> selecionado(s)
+            {routeInfo && (
+              <>
+                {' '}
+                · rota {routeInfo.n} locais · <strong>{routeInfo.d}</strong>
+              </>
+            )}
+          </span>
+          <button type="button" title="Arraste no mapa para selecionar uma área" onClick={() => setRectArm(true)}>
+            ▭ Área
+          </button>
+          <button type="button" title="Selecionar todos os locais visíveis (respeita os filtros)" onClick={selectVisibleNow}>
+            Filtrados
+          </button>
+          <button
+            type="button"
+            className="select-primary"
+            disabled={selectedIds.size === 0}
+            onClick={() => onMarkSelected(true)}
+          >
+            ✓ Marcar
+          </button>
+          <button type="button" disabled={selectedIds.size === 0} onClick={() => onMarkSelected(false)}>
+            ✗ Desmarcar
+          </button>
+          <button type="button" disabled={selectedIds.size === 0} onClick={onClearSelection}>
+            Limpar
+          </button>
+          <button type="button" onClick={onExitSelect}>
+            Sair
+          </button>
+        </div>
+      )}
+      {rectArm && (
+        <div className="select-hint">Arraste no mapa para selecionar os locais da área · Esc cancela</div>
+      )}
       {measuring && (
         <div className="measure-chip">
           <span>

@@ -98,6 +98,8 @@ export default function App() {
   const [activeSubs, setActiveSubs] = useState<Set<string> | null>(null);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCodes, setShowCodes] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -204,7 +206,10 @@ export default function App() {
       if (e.key === 'Escape') {
         if (picking) setPicking(false);
         else if (pendingPos) setPendingPos(null);
-        else if (showCodes) setShowCodes(false);
+        else if (selectMode) {
+          setSelectMode(false);
+          setSelectedIds(new Set());
+        } else if (showCodes) setShowCodes(false);
         else if (drawerOpen) setDrawerOpen(false);
         return;
       }
@@ -223,7 +228,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [picking, pendingPos, showCodes, drawerOpen, startAdd]);
+  }, [picking, pendingPos, showCodes, drawerOpen, selectMode, startAdd]);
 
   const cancelPick = useCallback(() => {
     setPicking(false);
@@ -306,6 +311,53 @@ export default function App() {
     setRemoved([]);
     setToast('Locais restaurados');
   }, []);
+
+  // --- seleção em lote (modo seleção) ---
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((v) => {
+      if (v) setSelectedIds(new Set());
+      return !v;
+    });
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectMany = useCallback((ids: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const markSelected = useCallback(
+    (mark: boolean) => {
+      const ids = [...selectedIds].filter((id) => markers.some((m) => m.id === id));
+      if (!ids.length) {
+        setToast('Nenhum local selecionado');
+        return;
+      }
+      setFound((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) {
+          if (mark) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+      setToast(mark ? `${ids.length} marcado(s) como achado(s)` : `${ids.length} desmarcado(s)`);
+    },
+    [selectedIds, markers],
+  );
 
   const toggleMaster = useCallback((id: MasterId) => {
     setActiveMasters((prev) => {
@@ -485,6 +537,8 @@ export default function App() {
           }}
           removedCount={removed.length}
           onRestoreRemoved={restoreRemoved}
+          selectMode={selectMode}
+          onToggleSelectMode={toggleSelectMode}
           onClose={() => setDrawerOpen(false)}
         />
       </div>
@@ -511,9 +565,16 @@ export default function App() {
         selectedId={selectedId}
         customCodes={customCodes}
         picking={picking}
+        selectMode={selectMode}
+        selectedIds={selectedIds}
         onAddClick={startAdd}
         onPick={onPick}
         onSelect={setSelectedId}
+        onToggleSelect={toggleSelect}
+        onSelectMany={selectMany}
+        onClearSelection={clearSelection}
+        onMarkSelected={markSelected}
+        onExitSelect={toggleSelectMode}
         onToggleFound={toggleFound}
         onCopy={copy}
         onRemove={removeMarker}
