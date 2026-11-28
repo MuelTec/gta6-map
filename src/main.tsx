@@ -11,3 +11,13 @@ createRoot(el).render(
     <App />
   </StrictMode>,
 );
+
+// PWA: registra o service worker só no build de produção (evita cache
+// interferindo no HMR em desenvolvimento).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch((e: unknown) => {
+      console.warn('Falha ao registrar o service worker:', e);
+    });
+  });
+}
